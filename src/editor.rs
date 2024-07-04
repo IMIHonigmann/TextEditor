@@ -1,8 +1,8 @@
-use crossterm::cursor::{position, MoveTo};
+use crossterm::cursor::{position, MoveDown, MoveLeft, MoveRight, MoveTo, MoveUp};
 use crossterm::event::KeyCode;
 use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent, KeyModifiers};
-use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
+use crossterm::{execute, terminal};
 use std::io::stdout;
 
 pub struct Editor {
@@ -63,28 +63,34 @@ impl Editor {
                 //     self.should_quit = true;
                 // }
                 KeyCode::Up => {
-                    if self.cursor_y > 0 {
-                        self.cursor_y -= 1;
-                    }
-                    execute!(std::io::stdout(), MoveTo(self.cursor_y, self.cursor_x)).unwrap();
+                    execute!(stdout(), MoveUp(1)).unwrap();
                 }
                 KeyCode::Down => {
-                    if self.cursor_y > 0 {
-                        self.cursor_y += 1;
-                    }
-                    execute!(std::io::stdout(), MoveTo(self.cursor_y, self.cursor_x)).unwrap();
+                    execute!(stdout(), MoveDown(1)).unwrap();
                 }
                 KeyCode::Left => {
-                    if self.cursor_x > 0 {
-                        self.cursor_x -= 1;
-                    }
-                    execute!(std::io::stdout(), MoveTo(self.cursor_y, self.cursor_x)).unwrap();
+                    execute!(stdout(), MoveLeft(1)).unwrap();
                 }
                 KeyCode::Right => {
-                    if self.cursor_x > 0 {
-                        self.cursor_x += 1;
+                    execute!(stdout(), MoveRight(1)).unwrap();
+                }
+                KeyCode::Backspace => {
+                    print!(" ");
+                    execute!(stdout(), MoveLeft(2)).unwrap();
+                    self.set_position();
+                    if self.cursor_x == 0 {
+                        execute!(stdout(), MoveUp(1)).unwrap();
                     }
-                    execute!(std::io::stdout(), MoveTo(self.cursor_y, self.cursor_x)).unwrap();
+                }
+                KeyCode::Enter => {
+                    execute!(stdout(), MoveDown(1)).unwrap();
+                    execute!(stdout(), MoveTo(0, self.cursor_y + 1)).unwrap();
+                    print!("~");
+                    execute!(stdout(), MoveRight(1)).unwrap();
+                }
+                Char('m') => {
+                    self.set_position();
+                    Editor::read_position();
                 }
                 _ => {
                     println!("x:{} y:{}", self.cursor_x, self.cursor_y);

@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hecto"
+name = "hmtext"
 version = "0.1.0"
 dependencies = [
  "crossterm",
