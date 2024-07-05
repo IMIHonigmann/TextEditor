@@ -1,9 +1,11 @@
 use crossterm::cursor::{position, MoveDown, MoveLeft, MoveRight, MoveTo, MoveUp};
 use crossterm::event::KeyCode;
-use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
-use crossterm::{execute, terminal};
+use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent};
+use crossterm::execute;
+use std::cmp::max;
 use std::io::stdout;
+mod terminal;
+use terminal::Terminal;
 
 pub struct Editor {
     should_quit: bool,
@@ -20,23 +22,11 @@ impl Editor {
         }
     }
     pub fn run(&mut self) {
-        Self::initialize().unwrap();
-        Self::draw_rows();
+        Terminal::initialize().unwrap();
+        Terminal::draw_rows().unwrap();
         let result = self.repl();
-        Self::terminate().unwrap();
+        Terminal::terminate().unwrap();
         result.unwrap();
-    }
-
-    fn initialize() -> Result<(), std::io::Error> {
-        enable_raw_mode()?;
-        Self::clear_screen()
-    }
-    fn terminate() -> Result<(), std::io::Error> {
-        disable_raw_mode()
-    }
-    fn clear_screen() -> Result<(), std::io::Error> {
-        let mut stdout = stdout();
-        execute!(stdout, Clear(ClearType::All))
     }
 
     fn repl(&mut self) -> Result<(), std::io::Error> {
@@ -51,17 +41,9 @@ impl Editor {
         Ok(())
     }
     fn evaluate_event(&mut self, event: &Event) {
-        // let row = position().x;
-        // let column = 0;
-        if let Key(KeyEvent {
-            code, modifiers, ..
-        }) = event
-        {
+        if let Key(KeyEvent { code, .. }) = event {
             self.set_position();
             match code {
-                // Char('b') if *modifiers == KeyModifiers::CONTROL => {
-                //     self.should_quit = true;
-                // }
                 KeyCode::Up => {
                     execute!(stdout(), MoveUp(1)).unwrap();
                 }
@@ -96,19 +78,16 @@ impl Editor {
                     println!("x:{} y:{}", self.cursor_x, self.cursor_y);
                 }
             }
+            self.set_position();
+            execute!(stdout(), MoveTo(max(1, self.cursor_x), self.cursor_y)).unwrap();
         }
     }
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
         if self.should_quit {
-            Self::clear_screen()?;
+            Terminal::clear_screen()?;
             print!("Goodbye.\r\n");
         }
         Ok(())
-    }
-    fn draw_rows() {
-        for i in 0..5 {
-            println!("{} ", '~');
-        }
     }
     fn read_position() {
         match position() {
@@ -123,8 +102,8 @@ impl Editor {
     fn set_position(&mut self) {
         match position() {
             Ok((x, y)) => {
-                self.cursor_x = x;
-                self.cursor_y = y;
+                self.cursor_x = max(0, x);
+                self.cursor_y = max(0, y);
             }
             Err(e) => {
                 eprintln!("Failed to get cursor position: {}", e);
