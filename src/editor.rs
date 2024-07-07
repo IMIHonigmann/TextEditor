@@ -1,9 +1,11 @@
-use crossterm::cursor::{position, MoveDown, MoveLeft, MoveRight, MoveTo, MoveUp};
-use crossterm::event::KeyCode;
+use crossterm::cursor::{position, Hide, MoveDown, MoveLeft, MoveRight, MoveTo, MoveUp, Show};
 use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent};
-use crossterm::execute;
+use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::queue;
+use crossterm::style::Print;
 use std::cmp::max;
 use std::io::stdout;
+use std::io::Write;
 mod terminal;
 use terminal::Terminal;
 
@@ -34,6 +36,7 @@ impl Editor {
             let event = read()?;
             self.evaluate_event(&event);
             self.refresh_screen()?;
+            stdout().flush().unwrap();
             if self.should_quit {
                 break;
             }
@@ -41,58 +44,67 @@ impl Editor {
         Ok(())
     }
     fn evaluate_event(&mut self, event: &Event) {
-        if let Key(KeyEvent { code, .. }) = event {
+        if let Key(KeyEvent {
+            code, modifiers, ..
+        }) = event
+        {
             self.set_position();
+            queue!(stdout(), Hide).unwrap();
             match code {
                 KeyCode::Up => {
-                    execute!(stdout(), MoveUp(1)).unwrap();
+                    queue!(stdout(), MoveUp(1)).unwrap();
                 }
                 KeyCode::Down => {
-                    execute!(stdout(), MoveDown(1)).unwrap();
+                    queue!(stdout(), MoveDown(1)).unwrap();
                 }
                 KeyCode::Left => {
-                    execute!(stdout(), MoveLeft(1)).unwrap();
+                    queue!(stdout(), MoveLeft(1)).unwrap();
                 }
                 KeyCode::Right => {
-                    execute!(stdout(), MoveRight(1)).unwrap();
+                    queue!(stdout(), MoveRight(1)).unwrap();
                 }
                 KeyCode::Backspace => {
-                    print!(" ");
-                    execute!(stdout(), MoveLeft(2)).unwrap();
+                    queue!(stdout(), Print(" ")).unwrap();
+                    queue!(stdout(), MoveLeft(2)).unwrap();
                     self.set_position();
-                    if self.cursor_x == 0 {
-                        execute!(stdout(), MoveUp(1)).unwrap();
-                    }
                 }
                 KeyCode::Enter => {
-                    execute!(stdout(), MoveDown(1)).unwrap();
-                    execute!(stdout(), MoveTo(0, self.cursor_y + 1)).unwrap();
-                    print!("~");
-                    execute!(stdout(), MoveRight(1)).unwrap();
+                    queue!(stdout(), MoveDown(1)).unwrap();
+                    queue!(stdout(), MoveTo(0, self.cursor_y + 1)).unwrap();
+                }
+                Char('l') if *modifiers == KeyModifiers::CONTROL => {
+                    self.should_quit = true;
                 }
                 Char('m') => {
                     self.set_position();
                     Editor::read_position();
                 }
-                _ => {
-                    println!("x:{} y:{}", self.cursor_x, self.cursor_y);
-                }
+                _ => {}
             }
+            stdout().flush().unwrap();
             self.set_position();
-            execute!(stdout(), MoveTo(max(1, self.cursor_x), self.cursor_y)).unwrap();
+            self.vimlike_tildas();
         }
     }
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
+        queue!(stdout(), Show).unwrap();
         if self.should_quit {
             Terminal::clear_screen()?;
-            print!("Goodbye.\r\n");
+            queue!(stdout(), Print("Goodbye.\r\n")).unwrap();
         }
         Ok(())
+    }
+    fn vimlike_tildas(&mut self) {
+        queue!(stdout(), MoveTo(0, self.cursor_y)).unwrap();
+        queue!(stdout(), Print("~")).unwrap();
+        queue!(stdout(), MoveTo(max(1, self.cursor_x), self.cursor_y)).unwrap();
     }
     fn read_position() {
         match position() {
             Ok((x, y)) => {
-                println!("The current cursor position is (x: {}, y: {}).", x, y);
+                let formatted_output_position =
+                    format!("The current cursor position is (x: {}, y: {}).\r\n", x, y);
+                queue!(stdout(), Print(formatted_output_position)).unwrap();
             }
             Err(e) => {
                 eprintln!("Failed to get cursor position: {}", e);
