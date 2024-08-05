@@ -1,8 +1,9 @@
 use crossterm::cursor::{position, Hide, MoveDown, MoveLeft, MoveRight, MoveTo, MoveUp, Show};
 use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent};
 use crossterm::event::{KeyCode, KeyModifiers};
-use crossterm::queue;
 use crossterm::style::Print;
+use crossterm::terminal::size;
+use crossterm::{queue, Command};
 use std::cmp::max;
 use std::io::stdout;
 use std::io::Write;
@@ -13,6 +14,8 @@ pub struct Editor {
     should_quit: bool,
     cursor_x: u16,
     cursor_y: u16,
+    width: u16,
+    height: u16,
 }
 
 impl Editor {
@@ -21,6 +24,8 @@ impl Editor {
             should_quit: false,
             cursor_x: 0,
             cursor_y: 0,
+            width: 0,
+            height: 0,
         }
     }
     pub fn run(&mut self) {
@@ -78,11 +83,15 @@ impl Editor {
                 Char('m') => {
                     self.set_position();
                     Editor::read_position();
+                    self.set_terminal_size_parameters();
+                    let output = format!(" width: {} height: {}", self.width, self.height);
+                    queue!(stdout(), Print(output)).unwrap();
                 }
                 _ => {}
             }
             stdout().flush().unwrap();
             self.set_position();
+
             self.vimlike_tildas();
         }
     }
@@ -120,6 +129,25 @@ impl Editor {
             Err(e) => {
                 eprintln!("Failed to get cursor position: {}", e);
             }
+        }
+    }
+    fn set_terminal_size_parameters(&mut self) {
+        match size() {
+            Ok((w, h)) => {
+                self.width = w;
+                self.height = h;
+            }
+            Err(e) => {
+                eprintln!("Failed to set terminal size parameters: {}", e);
+                self.width = 0;
+                self.height = 0;
+            }
+        }
+    }
+    fn get_terminal_size(&mut self) -> (u16, u16) {
+        match size() {
+            Ok((w, h)) => (w, h),
+            Err(_) => (0, 0),
         }
     }
 }
